@@ -1,0 +1,32 @@
+# First time push
+cd your-project-folder
+
+git init
+git add .
+git commit -m "feat: initial commit"
+
+git branch -M main
+
+git remote add origin https://github.com/YOUR_USERNAME/multi-agent-orchestration-patterns-for-enterprise-scale-systems.git
+
+git push -u origin main
+
+# Subsequent Pushes (Normal Workflow)
+git add .
+git commit -m "feat: describe what you changed"
+git push
+
+# Create new feature branch
+git checkout -b feature/user-authentication
+
+# Work and push
+git add .
+git commit -m "feat: implement JWT authentication"
+git push -u origin feature/user-authentication
+
+# If Remote Already Exists (Fix Case)
+remote origin already exists
+
+git remote remove origin
+git remote add origin https://github.com/YOUR_USERNAME/multi-agent-orchestration-patterns-for-enterprise-scale-systems.git
+
