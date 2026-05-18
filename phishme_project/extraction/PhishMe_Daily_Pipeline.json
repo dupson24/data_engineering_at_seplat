@@ -1,0 +1,95 @@
+{
+  "name": "PhishMe_Daily_Pipeline",
+  "description": "Cofense PhishMe API V2 — Daily extraction pipeline. Runs 3 notebooks in sequence: extract all data, trigger scenario CSV exports, download completed exports.",
+  "tags": {
+    "team": "Security",
+    "project": "PhishMe",
+    "owner": "Seplat IT Security",
+    "env": "Production"
+  },
+  "schedule": {
+    "quartz_cron_expression": "0 0 1 * * ?",
+    "timezone_id": "UTC",
+    "pause_status": "UNPAUSED"
+  },
+  "max_concurrent_runs": 1,
+  "timeout_seconds": 10800,
+  "email_notifications": {
+    "on_failure": [
+      "edw@seplatenergy.com"
+    ],
+    "on_success": [],
+    "on_start": [],
+    "no_alert_for_skipped_runs": true
+  },
+  "tasks": [
+    {
+      "task_key": "01_extract",
+      "description": "Extract users, scenarios, groups, timelines, engagement scores, repeat clickers, activity logs",
+      "notebook_task": {
+        "notebook_path": "/PhishMe/notebooks/01_extract",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "phishme_cluster",
+      "timeout_seconds": 5400,
+      "max_retries": 1,
+      "min_retry_interval_millis": 300000,
+      "retry_on_timeout": false
+    },
+    {
+      "task_key": "02_trigger_exports",
+      "description": "Hit /scenarios/{id}/full_csv for each scenario. Immediate CSVs landed, 202s queued. Completes in seconds.",
+      "depends_on": [
+        { "task_key": "01_extract" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/PhishMe/notebooks/02_trigger_exports",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "phishme_cluster",
+      "timeout_seconds": 600,
+      "max_retries": 1,
+      "min_retry_interval_millis": 60000,
+      "retry_on_timeout": false
+    },
+    {
+      "task_key": "03_download_exports",
+      "description": "Download completed background exports. Run 30 mins after 02 to allow PhishMe time to generate files.",
+      "depends_on": [
+        { "task_key": "02_trigger_exports" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/PhishMe/notebooks/03_download_exports",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "phishme_cluster",
+      "timeout_seconds": 5400,
+      "max_retries": 2,
+      "min_retry_interval_millis": 1800000,
+      "retry_on_timeout": false
+    }
+  ],
+  "job_clusters": [
+    {
+      "job_cluster_key": "phishme_cluster",
+      "new_cluster": {
+        "spark_version": "13.3.x-scala2.12",
+        "node_type_id": "Standard_DS3_v2",
+        "num_workers": 1,
+        "autotermination_minutes": 30,
+        "spark_conf": {
+          "spark.databricks.cluster.profile": "singleNode",
+          "spark.master": "local[*]"
+        },
+        "azure_attributes": {
+          "availability": "ON_DEMAND_AZURE"
+        },
+        "custom_tags": {
+          "project": "PhishMe",
+          "team": "Security",
+          "env": "Production"
+        }
+      }
+    }
+  ]
+}

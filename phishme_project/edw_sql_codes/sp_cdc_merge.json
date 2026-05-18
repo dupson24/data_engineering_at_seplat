@@ -1,0 +1,19 @@
+{
+  "name": "SP_UpdateCopyMetrics",
+  "type": "SqlServerStoredProcedure",
+  "dependsOn": [{ "activity": "SP_CDC_Merge", "dependencyConditions": ["Succeeded"] }],
+  "storedProcedureName": "phishme_security.usp_set_watermark",
+  "storedProcedureParameters": {
+    "table_name":        { "value": "@item().table_name" },
+    "load_date":         { "value": "@formatDateTime(utcnow(),'yyyy-MM-dd')" },
+    "load_timestamp":    { "value": "@utcnow()" },
+    "load_status":       { "value": "SUCCESS" },
+    "rows_extracted":    { "value": "@activity('Copy_ADLS_To_Staging').output.rowsRead" },
+    "rows_loaded":       { "value": "@activity('Copy_ADLS_To_Staging').output.rowsCopied" },
+    "rows_rejected":     { "value": "@activity('Copy_ADLS_To_Staging').output.rowsSkipped" },
+    "source_file_count": { "value": "@activity('Copy_ADLS_To_Staging').output.filesRead" },
+    "source_size_bytes": { "value": "@activity('Copy_ADLS_To_Staging').output.dataRead" },
+    "triggered_by":      { "value": "@pipeline().TriggerName" },
+    "pipeline_run_id":   { "value": "@pipeline().RunId" }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "linkedServices": [
+
+    {
+      "name": "LS_Synapse_Analytics",
+      "type": "Microsoft.DataFactory/factories/linkedservices",
+      "properties": {
+        "description": "Azure Synapse Analytics – seplat_edw (Managed Identity auth)",
+        "type": "AzureSqlDW",
+        "typeProperties": {
+          "connectionString": "Server=tcp:<synapse-workspace>.sql.azuresynapse.net,1433;Initial Catalog=seplat_edw;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;Authentication=Active Directory Managed Identity"
+        },
+        "connectVia": {
+          "referenceName": "AutoResolveIntegrationRuntime",
+          "type": "IntegrationRuntimeReference"
+        }
+      }
+    },
+
+    {
+      "name": "LS_ADLS_PhishMe",
+      "type": "Microsoft.DataFactory/factories/linkedservices",
+      "properties": {
+        "description": "ADLS Gen2 – PhishMe source data storage (Key Vault secret)",
+        "type": "AzureBlobFS",
+        "typeProperties": {
+          "url": "https://<storage-account>.dfs.core.windows.net",
+          "accountKey": {
+            "type": "AzureKeyVaultSecret",
+            "store": {
+              "referenceName": "LS_AzureKeyVault",
+              "type": "LinkedServiceReference"
+            },
+            "secretName": "adls-phishme-account-key"
+          }
+        },
+        "connectVia": {
+          "referenceName": "AutoResolveIntegrationRuntime",
+          "type": "IntegrationRuntimeReference"
+        }
+      }
+    },
+
+    {
+      "name": "LS_AzureKeyVault",
+      "type": "Microsoft.DataFactory/factories/linkedservices",
+      "properties": {
+        "type": "AzureKeyVault",
+        "typeProperties": {
+          "baseUrl": "https://<keyvault-name>.vault.azure.net/"
+        }
+      }
+    }
+
+  ]
+}

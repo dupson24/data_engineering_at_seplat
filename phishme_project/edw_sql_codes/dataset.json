@@ -1,0 +1,78 @@
+{
+  "datasets": [
+
+    {
+      "name": "DS_Synapse_PhishMe_Watermark",
+      "properties": {
+        "description": "Watermark control table – used by LKP_GetWatermark to retrieve last load state per table",
+        "type": "AzureSqlDWTable",
+        "linkedServiceName": {
+          "referenceName": "LS_Synapse_Analytics",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "schema": "phishme_security",
+          "table": "watermark"
+        }
+      }
+    },
+
+    {
+      "name": "DS_ADLS_PhishMe_CSV",
+      "properties": {
+        "description": "Parameterized ADLS Gen2 CSV source – folder resolved at runtime per table name",
+        "type": "DelimitedText",
+        "linkedServiceName": {
+          "referenceName": "LS_ADLS_PhishMe",
+          "type": "LinkedServiceReference"
+        },
+        "parameters": {
+          "folderPath": { "type": "String" }
+        },
+        "typeProperties": {
+          "location": {
+            "type": "AzureBlobFSLocation",
+            "fileSystem": "phishme-security",
+            "folderPath": {
+              "value": "@dataset().folderPath",
+              "type": "Expression"
+            }
+          },
+          "columnDelimiter": ",",
+          "rowDelimiter": "\n",
+          "encodingName": "UTF-8",
+          "firstRowAsHeader": true,
+          "quoteChar": "\"",
+          "escapeChar": "\\"
+        }
+      }
+    },
+
+    {
+      "name": "DS_Synapse_Staging",
+      "properties": {
+        "description": "Parameterized Synapse staging sink – schema and table resolved at runtime",
+        "type": "AzureSqlDWTable",
+        "linkedServiceName": {
+          "referenceName": "LS_Synapse_Analytics",
+          "type": "LinkedServiceReference"
+        },
+        "parameters": {
+          "schemaName": { "type": "String" },
+          "tableName":  { "type": "String" }
+        },
+        "typeProperties": {
+          "schema": {
+            "value": "@dataset().schemaName",
+            "type": "Expression"
+          },
+          "table": {
+            "value": "@dataset().tableName",
+            "type": "Expression"
+          }
+        }
+      }
+    }
+
+  ]
+}

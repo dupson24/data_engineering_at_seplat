@@ -1,0 +1,395 @@
+// ============================================================
+// SEPLAT ENERGY — PhishMe Security Analytics
+// DAX Measures — Complete Library
+// ============================================================
+// Paste each measure into Power BI Desktop:
+//   Modeling → New Measure → paste → Enter
+// Group measures into display folders as indicated
+// ============================================================
+
+
+// ============================================================
+// DISPLAY FOLDER: _Core KPIs
+// ============================================================
+
+Total Users =
+DISTINCTCOUNT(dim_user[email])
+
+Active Users =
+CALCULATE(
+    DISTINCTCOUNT(dim_user[email]),
+    dim_user[is_active] = TRUE()
+)
+
+Total Scenarios =
+DISTINCTCOUNT(dim_scenario[scenario_id])
+
+Total Emails Sent =
+SUM(fact_phishing_responses[total_emails_received])
+
+Total Clicks =
+SUM(fact_phishing_responses[opened_email])
+
+Total Reports =
+SUM(fact_phishing_responses[reported_phish])
+
+Total Educated =
+SUM(fact_phishing_responses[viewed_education])
+
+Total No Action =
+CALCULATE(
+    COUNTROWS(fact_phishing_responses),
+    fact_phishing_responses[response_category] = "No Action"
+)
+
+
+// ============================================================
+// DISPLAY FOLDER: _Rates
+// ============================================================
+
+Click Rate % =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(fact_phishing_responses),
+        fact_phishing_responses[opened_email] = TRUE()
+    ),
+    COUNTROWS(fact_phishing_responses),
+    0
+) * 100
+
+Report Rate % =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(fact_phishing_responses),
+        fact_phishing_responses[reported_phish] = TRUE()
+    ),
+    COUNTROWS(fact_phishing_responses),
+    0
+) * 100
+
+Education Rate % =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(fact_phishing_responses),
+        fact_phishing_responses[viewed_education] = TRUE()
+    ),
+    COUNTROWS(fact_phishing_responses),
+    0
+) * 100
+
+Click Not Reported % =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(fact_phishing_responses),
+        fact_phishing_responses[clicked_not_reported] = TRUE()
+    ),
+    COUNTROWS(fact_phishing_responses),
+    0
+) * 100
+
+Resilience Score =
+// High report rate + low click rate = resilient org
+ROUND(
+    [Report Rate %] - ([Click Rate %] * 0.5),
+    2
+)
+
+Avg Time to Report (mins) =
+AVERAGEX(
+    FILTER(
+        fact_phishing_responses,
+        fact_phishing_responses[time_to_report_mins] <> BLANK()
+    ),
+    fact_phishing_responses[time_to_report_mins]
+)
+
+
+// ============================================================
+// DISPLAY FOLDER: _Risk Metrics
+// ============================================================
+
+High Risk Users =
+CALCULATE(
+    DISTINCTCOUNT(agg_user_risk[email]),
+    agg_user_risk[user_risk_label] IN {"High", "Critical"}
+)
+
+Critical Risk Users =
+CALCULATE(
+    DISTINCTCOUNT(agg_user_risk[email]),
+    agg_user_risk[user_risk_label] = "Critical"
+)
+
+High Risk % =
+DIVIDE(
+    [High Risk Users],
+    [Total Users],
+    0
+) * 100
+
+Avg Org Risk Score =
+AVERAGE(agg_user_risk[user_risk_score])
+
+Avg Proficiency Score =
+AVERAGE(agg_user_risk[proficiency_score])
+
+Avg Susceptibility % =
+AVERAGE(dim_user[susceptibility_percent])
+
+Repeat Clickers =
+CALCULATE(
+    DISTINCTCOUNT(agg_user_risk[email]),
+    agg_user_risk[total_clicks] > 1
+)
+
+Repeat Clicker Rate % =
+DIVIDE(
+    [Repeat Clickers],
+    [Total Users],
+    0
+) * 100
+
+// Org Security Health Index (0-100, higher = safer)
+Security Health Index =
+VAR ReportScore    = MIN([Report Rate %], 100)
+VAR ClickPenalty   = MIN([Click Rate %] * 0.8, 100)
+VAR RepeatPenalty  = MIN([Repeat Clicker Rate %] * 1.5, 100)
+VAR EducationBonus = MIN([Education Rate %] * 0.3, 30)
+RETURN
+ROUND(
+    CLAMP(100 - ClickPenalty - RepeatPenalty + ReportScore * 0.2 + EducationBonus, 0, 100),
+    1
+)
+
+
+// ============================================================
+// DISPLAY FOLDER: _Time Intelligence
+// ============================================================
+
+Click Rate % MTD =
+CALCULATE(
+    [Click Rate %],
+    DATESMTD(dim_date[date_key])
+)
+
+Click Rate % QTD =
+CALCULATE(
+    [Click Rate %],
+    DATESQTD(dim_date[date_key])
+)
+
+Click Rate % YTD =
+CALCULATE(
+    [Click Rate %],
+    DATESYTD(dim_date[date_key])
+)
+
+Click Rate % vs Prior Month =
+VAR CurrentMonth = [Click Rate %]
+VAR PriorMonth =
+    CALCULATE(
+        [Click Rate %],
+        DATEADD(dim_date[date_key], -1, MONTH)
+    )
+RETURN
+IF(
+    NOT ISBLANK(PriorMonth),
+    CurrentMonth - PriorMonth,
+    BLANK()
+)
+
+Click Rate % MoM Change =
+DIVIDE(
+    [Click Rate % vs Prior Month],
+    CALCULATE([Click Rate %], DATEADD(dim_date[date_key], -1, MONTH)),
+    BLANK()
+) * 100
+
+Report Rate % vs Prior Month =
+VAR CurrentMonth = [Report Rate %]
+VAR PriorMonth =
+    CALCULATE(
+        [Report Rate %],
+        DATEADD(dim_date[date_key], -1, MONTH)
+    )
+RETURN
+IF(
+    NOT ISBLANK(PriorMonth),
+    CurrentMonth - PriorMonth,
+    BLANK()
+)
+
+Security Health Index vs Prior Month =
+VAR Current = [Security Health Index]
+VAR Prior =
+    CALCULATE(
+        [Security Health Index],
+        DATEADD(dim_date[date_key], -1, MONTH)
+    )
+RETURN
+IF(NOT ISBLANK(Prior), Current - Prior, BLANK())
+
+Rolling 3M Click Rate % =
+CALCULATE(
+    [Click Rate %],
+    DATESINPERIOD(dim_date[date_key], LASTDATE(dim_date[date_key]), -3, MONTH)
+)
+
+Rolling 3M Report Rate % =
+CALCULATE(
+    [Report Rate %],
+    DATESINPERIOD(dim_date[date_key], LASTDATE(dim_date[date_key]), -3, MONTH)
+)
+
+
+// ============================================================
+// DISPLAY FOLDER: _Scenario Analytics
+// ============================================================
+
+Most Clicked Scenario =
+CALCULATE(
+    SELECTEDVALUE(dim_scenario[scenario_name]),
+    TOPN(1, ALL(dim_scenario), [Click Rate %], DESC)
+)
+
+Best Reported Scenario =
+CALCULATE(
+    SELECTEDVALUE(dim_scenario[scenario_name]),
+    TOPN(1, ALL(dim_scenario), [Report Rate %], DESC)
+)
+
+Scenario Click Rate Rank =
+RANKX(
+    ALL(dim_scenario[scenario_name]),
+    [Click Rate %],
+    ,
+    DESC,
+    DENSE
+)
+
+Scenario Report Rate Rank =
+RANKX(
+    ALL(dim_scenario[scenario_name]),
+    [Report Rate %],
+    ,
+    DESC,
+    DENSE
+)
+
+Avg Scenario Resilience =
+AVERAGE(agg_scenario_performance[resilience_score])
+
+
+// ============================================================
+// DISPLAY FOLDER: _Department Analytics
+// ============================================================
+
+Dept Click Rate % =
+CALCULATE(
+    [Click Rate %],
+    ALLEXCEPT(dim_user, dim_user[department])
+)
+
+Dept Report Rate % =
+CALCULATE(
+    [Report Rate %],
+    ALLEXCEPT(dim_user, dim_user[department])
+)
+
+Dept Risk Rank =
+RANKX(
+    ALL(dim_user[department]),
+    [Avg Org Risk Score],
+    ,
+    DESC,
+    DENSE
+)
+
+Highest Risk Department =
+CALCULATE(
+    SELECTEDVALUE(dim_user[department]),
+    TOPN(1, ALL(dim_user[department]), [Avg Org Risk Score], DESC)
+)
+
+Dept vs Org Click Rate =
+[Click Rate %] - CALCULATE([Click Rate %], ALL(dim_user[department]))
+
+Dept vs Org Report Rate =
+[Report Rate %] - CALCULATE([Report Rate %], ALL(dim_user[department]))
+
+
+// ============================================================
+// DISPLAY FOLDER: _Conditional Formatting (used in tables)
+// ============================================================
+
+// Returns 1=Red, 2=Amber, 3=Green for conditional formatting rules
+Click Rate Color =
+SWITCH(
+    TRUE(),
+    [Click Rate %] >= 50, 1,  // Red
+    [Click Rate %] >= 20, 2,  // Amber
+    3                          // Green
+)
+
+Report Rate Color =
+SWITCH(
+    TRUE(),
+    [Report Rate %] >= 50, 3,  // Green
+    [Report Rate %] >= 20, 2,  // Amber
+    1                           // Red
+)
+
+Risk Label Color =
+SWITCH(
+    SELECTEDVALUE(agg_user_risk[user_risk_label]),
+    "Critical", 1,
+    "High",     2,
+    "Medium",   3,
+    4            // Low = Blue
+)
+
+Security Health Color =
+SWITCH(
+    TRUE(),
+    [Security Health Index] >= 70, 3,  // Green
+    [Security Health Index] >= 40, 2,  // Amber
+    1                                   // Red
+)
+
+
+// ============================================================
+// DISPLAY FOLDER: _Dynamic Labels (Card visuals)
+// ============================================================
+
+Click Rate Label =
+FORMAT([Click Rate %], "0.0") & "%"
+
+Report Rate Label =
+FORMAT([Report Rate %], "0.0") & "%"
+
+Security Health Label =
+FORMAT([Security Health Index], "0.0") & " / 100"
+
+High Risk Users Label =
+FORMAT([High Risk Users], "#,0") & " users"
+
+MoM Click Change Label =
+VAR Change = [Click Rate % vs Prior Month]
+RETURN
+IF(
+    ISBLANK(Change),
+    "N/A",
+    IF(Change > 0, "▲ ", "▼ ") & FORMAT(ABS(Change), "0.0") & "%"
+)
+
+MoM Report Change Label =
+VAR Change = [Report Rate % vs Prior Month]
+RETURN
+IF(
+    ISBLANK(Change),
+    "N/A",
+    IF(Change > 0, "▲ ", "▼ ") & FORMAT(ABS(Change), "0.0") & "%"
+)
+
+Last Refresh Date =
+"Last refreshed: " & FORMAT(MAX(fact_phishing_responses[ingested_at]), "DD MMM YYYY HH:MM UTC")

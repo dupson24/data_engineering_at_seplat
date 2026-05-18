@@ -1,0 +1,104 @@
+-- ============================================================
+-- WATERMARK TABLE DEFINITION
+-- Schema: phishme_security
+-- ============================================================
+CREATE TABLE phishme_security.watermark (
+    watermark_id       INT            IDENTITY(1,1) NOT NULL,
+    schema_name        NVARCHAR(128)  NOT NULL DEFAULT 'phishme_security',
+    table_name         NVARCHAR(128)  NOT NULL,
+    last_load_date     DATE           NULL,
+    last_load_datetime DATETIME       NULL,
+    last_load_status   NVARCHAR(20)   NULL,   -- SUCCESS | FAILED | RUNNING
+    last_pipeline_run_id NVARCHAR(128) NULL,
+    last_proc_name     NVARCHAR(256)  NULL,
+    last_source_path   NVARCHAR(500)  NULL,
+    error_message      NVARCHAR(1000) NULL,
+    error_code         NVARCHAR(50)   NULL,
+    is_active          BIT            NOT NULL DEFAULT 1,
+    created_at         DATETIME       NOT NULL DEFAULT GETDATE(),
+    updated_at         DATETIME       NOT NULL DEFAULT GETDATE()
+);
+GO
+
+
+-- ============================================================
+-- SEED: Insert one row per table (10 tables)
+-- ============================================================
+INSERT INTO phishme_security.watermark
+    (schema_name, table_name, last_load_date, last_load_status, is_active)
+VALUES
+    ('phishme_security', 'dim_date',                 '1900-01-01', 'INIT', 1),
+    ('phishme_security', 'dim_user',                 '1900-01-01', 'INIT', 1),
+    ('phishme_security', 'dim_scenario',             '1900-01-01', 'INIT', 1),
+    ('phishme_security', 'fact_phishing_responses',  '1900-01-01', 'INIT', 1),
+    ('phishme_security', 'fact_activity_timeline',   '1900-01-01', 'INIT', 1),
+    ('phishme_security', 'fact_activity_logs',       '1900-01-01', 'INIT', 1),
+    ('phishme_security', 'agg_user_risk',            '1900-01-01', 'INIT', 1),
+    ('phishme_security', 'agg_scenario_performance', '1900-01-01', 'INIT', 1),
+    ('phishme_security', 'agg_department_risk',      '1900-01-01', 'INIT', 1),
+    ('phishme_security', 'agg_monthly_trend',        '1900-01-01', 'INIT', 1);
+GO
+
+
+-- ============================================================
+-- ADF LOOKUP QUERY  (paste directly into LKP_GetWatermark)
+-- Returns all active tables for ForEach iteration
+-- ============================================================
+SELECT
+    table_name,
+    last_load_date,
+    last_load_status,
+    last_pipeline_run_id
+FROM phishme_security.watermark
+WHERE is_active = 1
+ORDER BY table_name;
+
+
+-- ============================================================
+-- usp_set_watermark  (called by every CDC stored procedure)
+-- Signature matches calls in store_proc.sql
+-- ============================================================
+CREATE OR ALTER PROCEDURE phishme_security.usp_set_watermark
+    @table_name         NVARCHAR(128),
+    @load_date          DATE,
+    @load_datetime      DATETIME,
+    @status             NVARCHAR(20),
+    @rows_inserted      INT,
+    @rows_updated       INT,
+    @rows_deleted       INT,
+    @source_path        NVARCHAR(500),
+    @dq_passed          BIT,
+    @rows_rejected      INT,
+    @proc_name          NVARCHAR(256),
+    @pipeline_run_id    NVARCHAR(128),
+    @trigger_type       NVARCHAR(50),
+    @error_message      NVARCHAR(1000),
+    @error_code         NVARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF EXISTS (SELECT 1 FROM phishme_security.watermark WHERE table_name = @table_name)
+        UPDATE phishme_security.watermark
+        SET
+            last_load_date       = @load_date,
+            last_load_datetime   = @load_datetime,
+            last_load_status     = @status,
+            last_pipeline_run_id = @pipeline_run_id,
+            last_proc_name       = @proc_name,
+            last_source_path     = @source_path,
+            error_message        = @error_message,
+            error_code           = @error_code,
+            updated_at           = GETDATE()
+        WHERE table_name = @table_name;
+    ELSE
+        INSERT INTO phishme_security.watermark
+            (table_name, last_load_date, last_load_datetime, last_load_status,
+             last_pipeline_run_id, last_proc_name, last_source_path,
+             error_message, error_code)
+        VALUES
+            (@table_name, @load_date, @load_datetime, @status,
+             @pipeline_run_id, @proc_name, @source_path,
+             @error_message, @error_code);
+END;
+GO
